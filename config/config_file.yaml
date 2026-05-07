@@ -16,14 +16,14 @@ args:
     type: str
     required: true
     help: "Name of the experiment for tracking results"
-    value: "rev_21x21x5_new_all" # Fill your experiment name in "" (e.g. "experiment_1")# ""deepseek_openrouter_temp0""
+    value: "test1" # Fill your experiment name in "" (e.g. "experiment_1")# ""deepseek_openrouter_temp0""
 
   prompt:
     type: str
     required: true
     choices: ["time", "distance", "hunger", "pain", "man", "woman", "french", "dutch", "chinese", "hairdresser", "gp", "lawyer", "firstperson", "cot", "time_whitespace", "dollar", "yuan", "distance_safe"]
     help: "Which prompt to use"
-    value: "distance_safe" # Fill inside the "" one prompt type (e.g. "time")
+    value: "time" # Fill inside the "" one prompt type (e.g. "time")
 
   models:
     nargs: "+"
@@ -46,50 +46,52 @@ args:
       - llama3_2_3b
       - llama3_2_1b
     help: "List of models to run experiments on"
-    value: # Put the model names inside the list (e.g. ["gpt4o", "claude3_5"])
+    value: 
+      - llama3_3_70b
+    # Put the model names inside the list (e.g. ["gpt4o", "claude3_5"])
 
   n_experiments:
     type: int
     default: 1
     help: "Number of experiment repetitions"
-    value: 5 # Put the number
+    value: 1 # Put the number
 
   # Money is provided in a log scale by default
   money_min:
     type: float
     default: -1
     help: "Minimum money value"
-    value: # Put the number
+    value: 0 # Put the number
 
   money_max:
     type: float
     default: 3
     help: "Maximum money value"
-    value: # Put the number
+    value: 1000 # Put the number
 
   money_n:
     type: int
     default: 3
     help: "Number of money values to test"
-    value: 21 # Put the number
+    value:  21 # Put the number
 
   quantity_min:
     type: float
     default: 0
     help: "Minimum value for quantity"
-    value: 0 # Put the number
+    value: 60 # Put the number
 
   quantity_max:
     type: float
     default: 100
     help: "Maximum value for quantity"
-    value: 30 # Put the number
+    value: 120 # Put the number
 
   quantity_n:
     type: int
     default: 4
     help: "Number of values for quantity to test"
-    value: 21 # Put the number
+    value:  1 # Put the number
 
   output_dir:
     type: str
@@ -112,7 +114,7 @@ args:
   log_scale_money:
     action: store_true
     help: "Use logarithmic scale if true for money values, otherwise linear scale"
-    value: true
+    value: false
 
   warm_start:
     action: store_true

@@ -31,7 +31,8 @@ def load_config(path: Path = Path("config/config_file.yaml")) -> dict:
         "int": int,
         "float": float,
     }
-    cfg = yaml.safe_load(path.open())
+    # cfg = yaml.safe_load(path.open())
+    cfg = yaml.safe_load(path.open(encoding='utf-8'))
     args = {}
 
     for name, opts in cfg.get("args", {}).items():
@@ -388,62 +389,62 @@ def initialize_models(args):
         dict: Dictionary of initialized model instances
     """
     args = load_config()
-    keys_dict = args.get("api_keys", {})
+    # keys_dict = args.get("api_keys", {})
 
     with open("keys.yaml") as f:
         keys_dict = yaml.safe_load(f)
 
     model_configs = {
-        "gpt4o": {
-            "class": GptApi,
-            "api_key": keys_dict["API_keys"]["OpenAI"],
-            "model": "gpt-4o-2024-08-06",
-        },
+        # "gpt4o": {
+        #     "class": GptApi,
+        #     "api_key": keys_dict["API_keys"]["OpenAI"],
+        #     "model": "gpt-4o-2024-08-06",
+        # },
         # "claude3_5": {
         #     "class": ClaudeApi,
         #     "api_key": keys_dict["API_keys"]["Claude"],
         #     "model": "claude-3-5-sonnet-20241022",
         # },
-        "claude3_5": {
-            "class": OpenRouterApi,
-            "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "anthropic/claude-3.5-sonnet-20241022",
-        },
+        # "claude3_5": {
+        #     "class": OpenRouterApi,
+        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
+        #     "model": "anthropic/claude-3.5-sonnet-20241022",
+        # },
         "llama3_3_70b": {
             "class": OpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "meta-llama/llama-3.3-70b-instruct",
         },
-        "mixtral8x22b": {
-            "class": OpenRouterApi,
-            "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "mistralai/mixtral-8x22b-instruct",
-        },
-        "gemini2": {
-            "class": GeminiApi,
-            "api_key": keys_dict["API_keys"]["Google"],
-            "model": "gemini-2.0-flash-001",
-        },
+        # "mixtral8x22b": {
+        #     "class": OpenRouterApi,
+        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
+        #     "model": "mistralai/mixtral-8x22b-instruct",
+        # },
+        # "gemini2": {
+        #     "class": GeminiApi,
+        #     "api_key": keys_dict["API_keys"]["Google"],
+        #     "model": "gemini-2.0-flash-001",
+        # },
         "deepseek_v3": {
             "class": OpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "deepseek/deepseek-chat-v3-0324",
         },
-        "llama3_1_8b": {
-            "class": OpenRouterApi,
-            "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "meta-llama/llama-3.1-8b-instruct",
-        },
-        "llama3_2_3b": {
-            "class": OpenRouterApi,
-            "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "meta-llama/llama-3.2-3b-instruct",
-        },
-        "llama3_2_1b": {
-            "class": OpenRouterApi,
-            "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "meta-llama/llama-3.2-1b-instruct",
-        },
+        # "llama3_1_8b": {
+        #     "class": OpenRouterApi,
+        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
+        #     "model": "meta-llama/llama-3.1-8b-instruct",
+        # },
+        # "llama3_2_3b": {
+        #     "class": OpenRouterApi,
+        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
+        #     "model": "meta-llama/llama-3.2-3b-instruct",
+        # },
+        # "llama3_2_1b": {
+        #     "class": OpenRouterApi,
+        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
+        #     "model": "meta-llama/llama-3.2-1b-instruct",
+        # },
     }
 
     model_dict = {}
