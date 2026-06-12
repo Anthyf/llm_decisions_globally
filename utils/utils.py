@@ -2,7 +2,9 @@
 Utils for LLM trade-offs scripts. API KEYS are removed.
 """
 
+from importlib.resources import path
 import os
+from platform import node
 import numpy as np
 import pandas as pd
 import math
@@ -31,8 +33,19 @@ def load_config(path: Path = Path("config/config_file.yaml")) -> dict:
         "int": int,
         "float": float,
     }
-    # cfg = yaml.safe_load(path.open())
-    cfg = yaml.safe_load(path.open(encoding='utf-8'))
+
+    def country_list_constructor(Loader, node):
+        full_path = path.parent / node.value
+        
+        with open(full_path, 'r', encoding='utf-8') as f:
+            return [line.strip() for line in f if line.strip()]
+
+    yaml.SafeLoader.add_constructor('!include', country_list_constructor)
+    
+    # Leave this exactly as it was:
+    with path.open(encoding='utf-8') as f:
+        cfg = yaml.load(f, Loader=yaml.SafeLoader)
+
     args = {}
 
     for name, opts in cfg.get("args", {}).items():
@@ -115,79 +128,103 @@ def compute_experiments(args, model, money_array, quant_array):
     base_delay = 2  # Initial delay in seconds
     max_delay = 120  # Maximum delay in seconds
 
+
+    countries = args.get("country_list", [None])
+
     for ep in range(args["n_experiments"]):
         print(f"\tExperiment no. {ep+1}")
 
-        for quant_value in quant_array:
-            for money_value in money_array:
-                prompt = generate_prompt(args, money_value, quant_value)
+        for country in countries:
+            if country:
+                print(f"\t\tRunning country: {country}")
 
-                retry_count = 0
-                while retry_count <= max_retries:
-                    try:
-                        response = model.generate_response(prompt=prompt)
-                        break
-                    except (RequestException, MaxRetryError, NewConnectionError) as e:
-                        retry_count += 1
+            for quant_value in quant_array:
+                for money_value in money_array:
+                    prompt = generate_prompt(args, money_value, quant_value, country=country)
 
-                        if retry_count > max_retries:
-                            print(f"[INFO] Fatal error after {max_retries} retries:")
-                            print(f"\t{e}")
-                            print("Saving partial results and exiting.")
+                    retry_count = 0
+                    while retry_count <= max_retries:
+                        try:
+                            response = model.generate_response(prompt=prompt)
+                            break
+                        except (RequestException, MaxRetryError, NewConnectionError) as e:
+                            retry_count += 1
 
-                            return pd.DataFrame(results_list) if results_list else None
+                            if retry_count > max_retries:
+                                print(f"[INFO] Fatal error after {max_retries} retries:")
+                                print(f"\t{e}")
+                                print("Saving partial results and exiting.")
 
-                        delay = min(
-                            base_delay * (2 ** (retry_count - 1))
-                            + random.uniform(0, 1),
-                            max_delay,
-                        )
-                        print(
-                            f"[INFO] Network error on attempt {retry_count}/{max_retries}:"
-                        )
-                        print(f"\t{e}\nRetrying in {delay:.1f} seconds...")
-                        time.sleep(delay)
-                        print("Retrying...")
-                    except Exception as e:
-                        print(
-                            f"Unexpected error: {e}, \n[INFO] Might be due to not enough credits. Retrying..."
-                        )
-                        retry_count += 1
-                        if retry_count > max_retries:
-                            print(
-                                f"[INFO] Fatal error after {max_retries} retries. Saving partial results."
+                                return pd.DataFrame(results_list) if results_list else None
+
+                            delay = min(
+                                base_delay * (2 ** (retry_count - 1))
+                                + random.uniform(0, 1),
+                                max_delay,
                             )
-                            return pd.DataFrame(results_list) if results_list else None
-                        time.sleep(30)
+                            print(
+                                f"[INFO] Network error on attempt {retry_count}/{max_retries}:"
+                            )
+                            print(f"\t{e}\nRetrying in {delay:.1f} seconds...")
+                            time.sleep(delay)
+                            print("Retrying...")
+                        except Exception as e:
+                            print(
+                                f"Unexpected error: {e}, \n[INFO] Might be due to not enough credits. Retrying..."
+                            )
+                            retry_count += 1
+                            if retry_count > max_retries:
+                                print(
+                                    f"[INFO] Fatal error after {max_retries} retries. Saving partial results."
+                                )
+                                return pd.DataFrame(results_list) if results_list else None
+                            time.sleep(30)
 
-                entry = {
-                    "reward_value": round(float(money_value), 6),
-                    "quantity": round(float(quant_value), 6),
-                    "experiment": ep + 1,
-                    "output": response,
-                }
+                    entry = {
+                        "reward_value": round(float(money_value), 6),
+                        "quantity": round(float(quant_value), 6),
+                        "experiment": ep + 1,
+                        "output": response,
+                    }
 
-                results_list.append(entry)
-                time.sleep(0.5)
+                    if country is not None:
+                        entry["country"] = country
+                        
+                    results_list.append(entry)
+                    time.sleep(0.5)
 
     results_df = pd.DataFrame(results_list)
     return results_df
 
 
-def generate_prompt(args, money_value, quant_value):
-    euros = int(money_value)
-    cents = int(round((money_value - euros) * 100))
+
+def generate_prompt(args, money_value, quant_value, country=None):
+    dollars = int(money_value)
+    cents = int(round((money_value - dollars) * 100))
     if cents == 100:
-        euros += 1
+        dollars += 1
         cents = 0
 
     template = args["prompt"]
 
-    return template.format(
-        reward_euros=euros, reward_cents=cents, quant=int(round(quant_value))
-    )
+    # Build the format arguments dictionary dynamically
+    format_kwargs = {
+        "reward_dollars": dollars,
+        "reward_cents": cents,
+        "quant": int(round(quant_value))
+    }
+    
+    # If a country is provided, map it to the exact placeholder string token
+    if country is not None:
+        format_kwargs["country_list"] = country
+
+    # .format() feed in different values through the format_kwargs so that we have a series of prompts with different money and quantity values. 
+    prompt= template.format(**format_kwargs)
+    # print(f"\n--- GENERATED PROMPT ---\n{prompt}\n------------------------")
+    return prompt
 
 
+# The following three functions: make_heat_maps, compute_edges, combine_charts are only for generating heatmaps. 
 def make_heat_maps(args, df, model_name):
     """
     Generate and save a heatmap for one model's experiment results.
@@ -241,12 +278,12 @@ def make_heat_maps(args, df, model_name):
         log_centers = np.log10(reward_values)
         log_edges = compute_edges(log_centers, log_scale=False)
         y_edges = log_edges
-        ylabel = "Money offered in euros (log scale)"
+        ylabel = "Money offered in dollars (log scale)"
         y_ticks = log_centers
         y_tick_labels = [f"{v:.2f}".rstrip("0").rstrip(".") for v in reward_values]
     else:
         y_edges = compute_edges(reward_values, log_scale=False)
-        ylabel = "Money offered in euros"
+        ylabel = "Money offered in dollars"
         mn = args.get("money_n", len(reward_values))
         if mn <= 5:
             y_ticks = reward_values
@@ -425,10 +462,15 @@ def initialize_models(args):
         #     "api_key": keys_dict["API_keys"]["Google"],
         #     "model": "gemini-2.0-flash-001",
         # },
-        "deepseek_v3": {
+        # "deepseek_v3": {
+        #     "class": OpenRouterApi,
+        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
+        #     "model": "deepseek/deepseek-chat-v3-0324",
+        # },
+        "deepseek-v4-pro": {
             "class": OpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "deepseek/deepseek-chat-v3-0324",
+            "model": "deepseek/deepseek-v4-pro",
         },
         # "llama3_1_8b": {
         #     "class": OpenRouterApi,
@@ -478,8 +520,19 @@ def LR_transition_values(args, data, model_name):
         model_name (str): Identifier for the model (e.g. "gpt4o").
     Returns:
         None. Loads and updates 'LR_results.pkl' so that LR_results[model_name] = DataFrame.
+    
+    Save dir:
+    pickle_filename = f'{args["output_dir"]}/{args["prompt_type"]}/{args["experiment_name"]}/LR_results.pkl'
+
+    The file directory is consisted of three layers, from original paper, it is always: 
+    # results (this has been fixed)/prompt_type (such as time, pain)/experiment_name (in the begining of config_file)
+    In our new project, this is same: 
+    # new_results_tep2 (this will be changed to a fixed)/prompt_type (country)/experiment_name (we use test2_countrytxt, in the begining of config_file)
+    
     """
     df = data[model_name].copy()
+    # fill na to nan so that the following regex search won't crash due to NoneType.
+    df["output"] = df["output"].fillna("")
 
     if args["prompt_type"] == "chinese":
         df["output_binary"] = df["output"].map(
@@ -578,71 +631,98 @@ def LR_transition_values(args, data, model_name):
             "[INFO] Consider manual checking of the classification of aforementioned index value in 'utils.LR_transition_values' function."
         )
 
-    mask_nan = df["reward_value"].isna() | df["output_binary"].isna()
-    df_nan = df[mask_nan]
+    mask_nan = df["reward_value"].isna() | df["output_binary"].isna() # | means OR, mask_nan will return True or False.
+    df_nan = df[mask_nan] # Creates a new DataFrame containing only the rows with missing data.
     if not df_nan.empty:
         print(
             f'\nModel: **{model_name}**, prompt type: **{args["prompt_type"]}**\n',
             df_nan,
         )
         print(f"\n[INFO] Dropping {len(df_nan)} rows due to NaN.\n")
+    
     df = df.dropna(subset=["reward_value", "output_binary"])
 
+    unique_countries = sorted(df["country"].unique()) 
     unique_quantities = sorted(df["quantity"].unique())
     results = []
 
-    for q in unique_quantities:
-        sub = df[df["quantity"] == q]
+    for country in unique_countries:                        
+        df_country = df[df["country"] == country]           
 
-        X_raw = sub[["reward_value"]].astype(float)
-        if args["log_scale_money"]:
-            if (X_raw <= 0).any().any():
-                raise ValueError(
-                    f"Found non‑positive reward_value(s) in quantity '{q}' while log_scale=True."
-                )
-            X = np.log10(X_raw)
-        else:
-            X = X_raw
+        for q in unique_quantities:
+            sub = df_country[df_country["quantity"] == q]
 
-        y = sub["output_binary"].astype(int)
+            if sub.empty: # ADD safety check
+                continue
 
-        # Skip degenerate cases where y is constant
-        if y.nunique() == 1:
+            X_raw = sub[["reward_value"]].astype(float)
             if args["log_scale_money"]:
-                if y.iloc[0] == 0:
-                    note_str = f'>{10**args["money_max"]}'
-                else:
-                    note_str = f'<{10**args["money_min"]}'
+                if (X_raw <= 0).any().any():
+                    raise ValueError(
+                        f"Found non‑positive reward_value(s) in quantity '{q}', country '{country}' while log_scale=True."
+                    )
+                X = np.log10(X_raw)
             else:
-                if y.iloc[0] == 0:
-                    note_str = f'>{args["money_max"]}'
+                X = X_raw
+
+            y = sub["output_binary"].astype(int)
+
+            # Skip degenerate cases where y is constant
+            if y.nunique() == 1:
+                if args["log_scale_money"]:
+                    if y.iloc[0] == 0:
+                        note_str = f'>{10**args["money_max"]}'
+                    else:
+                        note_str = f'<{10**args["money_min"]}'
                 else:
-                    note_str = f'<{args["money_min"]}'
+                    if y.iloc[0] == 0:
+                        note_str = f'>{args["money_max"]}'
+                    else:
+                        note_str = f'<{args["money_min"]}'
 
-            results.append((q, note_str))
-            continue
+                results.append((country, q, note_str))
+                continue # The continue here is important, because you won't go to a logistic regression when y is entirely constant.
 
-        # Fit logistic regression
-        model = LogisticRegression()
-        model.fit(X, y)
-        beta0 = model.intercept_[0]
-        beta1 = model.coef_[0][0]
+            # Fit logistic regression
+            model = LogisticRegression()
+            model.fit(X, y)
+            beta0 = model.intercept_[0]
+            beta1 = model.coef_[0][0]
 
-        if beta1 == 0:
-            results.append((q, "Fit slope=0?"))
-            continue
+            if beta1 == 0: # There is no slope. A completely flat line.
+                results.append((country, q, "Fit slope=0?"))
+                continue
 
-        # 50% acceptance => (beta0 + beta1*x)=0 => x*=-beta0/beta1
-        x_star = -beta0 / beta1
+            # 50% acceptance => (beta0 + beta1*x)=0 => x*=-beta0/beta1
+            x_tran = -beta0 / beta1
 
-        if args["log_scale_money"]:
-            x_star = 10**x_star
+            # if args["log_scale_money"]:
+            #     x_tran = 10**x_tran
 
-        results.append((q, x_star))
+            # results.append((country, q, x_tran))
 
-    results_df = pd.DataFrame(results, columns=["quantity", "transition"])
+            # if there are scattered yes or no but not a solid and clear transition curve a logit can fit, the returned transition value could be 
+            # out of the range of our given 0.1 dollar to 100 dollar, for example a number over 10 thousand. So we cap them:
+            if args["log_scale_money"]:
+                x_tran = 10**x_tran
+                money_min_real = 10**args["money_min"]
+                money_max_real = 10**args["money_max"]
+            else:
+                money_min_real = args["money_min"]
+                money_max_real = args["money_max"]
+
+            # ADD: cap out-of-range extrapolations, same logic as degenerate case
+            if x_tran > money_max_real:
+                results.append((country, q, f">{money_max_real}"))
+            elif x_tran < money_min_real:
+                results.append((country, q, f"<{money_min_real}"))
+            else:
+                results.append((country, q, x_tran))
+
+    results_df = pd.DataFrame(results, columns=["country", "quantity", "transition"])
 
     pickle_filename = f'{args["output_dir"]}/{args["prompt_type"]}/{args["experiment_name"]}/LR_results.pkl'
+
     try:
         with open(pickle_filename, "rb") as f:
             LR_results = pickle.load(f)
