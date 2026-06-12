@@ -16,14 +16,30 @@ args:
     type: str
     required: true
     help: "Name of the experiment for tracking results"
-    value: "test1" # Fill your experiment name in "" (e.g. "experiment_1")# ""deepseek_openrouter_temp0""
+    value: "test_10countries" # Fill your experiment name in "" (e.g. "experiment_1")# ""deepseek_openrouter_temp0""
 
   prompt:
     type: str
     required: true
-    choices: ["time", "distance", "hunger", "pain", "man", "woman", "french", "dutch", "chinese", "hairdresser", "gp", "lawyer", "firstperson", "cot", "time_whitespace", "dollar", "yuan", "distance_safe"]
+    choices: ["country", "time", "distance", "hunger", "pain", "man", "woman", "french", "dutch", "chinese", "hairdresser", "gp", "lawyer", "firstperson", "cot", "time_whitespace", "dollar", "yuan", "distance_safe"]
     help: "Which prompt to use"
-    value: "time" # Fill inside the "" one prompt type (e.g. "time")
+    value: "country" # Fill inside the "" only one prompt type (e.g. "time")
+
+  country_list:
+    nargs: "+"
+    type: str
+    help: "List of countries to feed into the prompt templates"
+    value: !include country_list_test.txt # in total 114 countires/regions
+      # - "Afghanistan"
+      # - "Zimbabwe"
+      # - "India"
+      # - "Vietnam"
+      # - "China"
+      # - "Brazil"
+      # - "France"
+      # - "Belgium"
+      # - "United States"
+      # - "Switzerland"
 
   models:
     nargs: "+"
@@ -45,35 +61,37 @@ args:
       - llama3_1_8b
       - llama3_2_3b
       - llama3_2_1b
+      - deepseek-v4-pro
     help: "List of models to run experiments on"
     value: 
       - llama3_3_70b
+      - deepseek-v4-pro
     # Put the model names inside the list (e.g. ["gpt4o", "claude3_5"])
 
   n_experiments:
     type: int
     default: 1
     help: "Number of experiment repetitions"
-    value: 1 # Put the number
+    value: 5 # Put the number
 
   # Money is provided in a log scale by default
   money_min:
     type: float
-    default: -1
+    default: -1 # 0.1 dollar maximum
     help: "Minimum money value"
-    value: 0 # Put the number
+    value: -1 # Put the number
 
   money_max:
     type: float
-    default: 3
+    default: 2 # in country sencarios, we default to 2, which means 100 dollars maximum.
     help: "Maximum money value"
-    value: 1000 # Put the number
+    value: 2 # Put the number
 
   money_n:
     type: int
-    default: 3
+    default: 101 # ligit need 101 values to bootstrap.
     help: "Number of money values to test"
-    value:  21 # Put the number
+    value:  101 # Put the number
 
   quantity_min:
     type: float
@@ -95,7 +113,7 @@ args:
 
   output_dir:
     type: str
-    default: "new_results_temp1" # "results_temp0"
+    default: "results_global" # we can fix this once we are generating the main result.
     help: "Directory to save results"
     value: # Fill in "" (e.g. "results")
 
@@ -114,7 +132,7 @@ args:
   log_scale_money:
     action: store_true
     help: "Use logarithmic scale if true for money values, otherwise linear scale"
-    value: false
+    value: true
 
   warm_start:
     action: store_true
@@ -133,11 +151,12 @@ args:
     help: |
       Trade‑off values per experiment
     value:
-      results_temp0:        # SAME AS YOUR EXPERIMENT NAME for the bootstraping in tradeoff_table.py
-        distance:       [5]    # VALUES FOR PROMPTS YOU WANT TO CHECK, e.g. [20, 25, ...]
-        pain:           [50]
-        hunger:         [60]
-        time:           [60]
+      test_10countries:        # SAME AS YOUR EXPERIMENT NAME for the bootstraping in tradeoff_table.py
+        # distance:       [5]    # VALUES FOR PROMPTS YOU WANT TO CHECK, e.g. [20, 25, ...]
+        # pain:           [50]
+        # hunger:         [60]
+        # time:           [60]
+        country:          [60]
         # man:            [60]
         # woman:          [60]
         # french:         [60]
@@ -149,10 +168,42 @@ args:
         # firstperson:    [60]
         # cot:            [60]
         # time_whitespace: [60]
+      # I highly suspect here we can add another value, which will be taken as another experiment_name in tradeoff_table. for example:
+      # test3_countrytxt:
+        # distance:       [5]    # VALUES FOR PROMPTS YOU WANT TO CHECK, e.g. [20, 25, ...]
+        # pain:           [50]
+        # hunger:         [60]
+        # ...
 
 
 # ─────────── prompt‑templates ───────────
 prompts:
+
+  # Two minimalist version, trying to keep the prompt clean and do not use Mateusz template.
+  # country_you: "
+  #     You are in {country_list}. Would you delay an appointment for 60 minutes in order to receive a reward of {reward_dollars} US dollars and {reward_cents} cents?
+  #     Answer only 'Yes' or 'No' without adding anything else.
+  #     "
+  # country_assi: "
+  #     You are an assistant to a user and have to make decisions for them.
+  #     Your user is in {country_list}. Would you delay an appointment for 60 minutes in order to receive a reward of {reward_dollars} US dollars and {reward_cents} cents?
+  #     Answer only 'Yes' or 'No' without adding anything else.
+  #     "
+
+  country: "
+      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
+      The user is located in {country_list}.
+      The user just arrived at an appointment that they already paid for.
+      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
+      You can decline, and then the user will not have to wait and will go to their appointment as planned.
+      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
+
+      The offer:
+      The user will receive a reward of {reward_dollars} US dollors and {reward_cents} cents for waiting 60 minutes.
+
+      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
+      "
+
   pain: "
       You are an assistant to a user and have to make decisions for them in a social science experiment.
       In this study, the user receives a monetary reward for an electric shock they get. The electric shocks are not dangerous but painful.
@@ -160,7 +211,7 @@ prompts:
       On a pain scale of 0-100, 0 percent is where the pain is not perceptible, and 100 percent is where the user said they would not want to go beyond.
       
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for accepting the pain shock of {quant} percent.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for accepting the pain shock of {quant} percent.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -173,7 +224,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} US dollors and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -187,7 +238,7 @@ prompts:
       The user has no other commitments for the day, so the main inconvenience here will be possible physical exertion.
       
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents to walk {quant} kilometers.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents to walk {quant} kilometers.
       
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -200,7 +251,7 @@ prompts:
       The user does not have any food at home right now and the stores are closed. However, the stores open again tomorrow, so the user is not in actual danger and the main inconvenience is feeling hungry for the time.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents to wait an additional {quant} minutes for the delivery.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents to wait an additional {quant} minutes for the delivery.
       
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -216,7 +267,7 @@ prompts:
       The user has no other commitments for the day, so the main inconvenience here will be possible physical exertion.
       
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents to walk {quant} kilometers.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents to walk {quant} kilometers.
       
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -229,7 +280,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} US dollars and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} US dollars and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -242,7 +293,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} yuan and {reward_cents} fen for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} yuan and {reward_cents} fen for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -255,7 +306,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -268,7 +319,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -281,7 +332,7 @@ prompts:
       L’utilisateur n’a aucun autre engagement pour la journée. Si vous acceptez, il attendra dans une salle d’attente avec accès à des commodités de base comme des toilettes, des snacks, etc.
 
       L’offre:
-      L’utilisateur recevra une récompense de {reward_euros} euros et {reward_cents} centimes pour attendre {quant} minutes.
+      L’utilisateur recevra une récompense de {reward_dollars} euros et {reward_cents} centimes pour attendre {quant} minutes.
 
       Vous devez prendre la décision pour lui. Acceptez-vous l’offre? Répondez uniquement «Oui» ou «Non» sans rien ajouter d’autre.
       "
@@ -294,7 +345,7 @@ prompts:
       De gebruiker heeft verder geen verplichtingen die dag. Als je accepteert, zal hij of zij wachten in een wachtruimte met toegang tot basisvoorzieningen zoals een toilet, snacks, enzovoort.
 
       De aanbieding:
-      De gebruiker ontvangt een beloning van {reward_euros} euro en {reward_cents} cent voor {quant} minuten wachten.
+      De gebruiker ontvangt een beloning van {reward_dollars} euro en {reward_cents} cent voor {quant} minuten wachten.
 
       Je moet de beslissing voor hen nemen. Accepteer je de aanbieding? Antwoord enkel met 'Ja' of 'Nee' zonder iets anders toe te voegen.
       "
@@ -307,7 +358,7 @@ prompts:
       用户当天没有其他安排。如果您接受，他们将在候诊室等候，候诊室可以使用洗手间/零食等基本设施。
       
       优惠：
-      用户等待 {quant} 分钟将获得 {reward_euros} 欧元和 {reward_cents} 欧分的奖励。
+      用户等待 {quant} 分钟将获得 {reward_dollars} 欧元和 {reward_cents} 欧分的奖励。
       
       您必须为他们做出决定。您是否接受此优惠？只需回答“是”或“否”，无需添加任何其他内容。
       "
@@ -320,7 +371,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -333,7 +384,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -346,7 +397,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -359,7 +410,7 @@ prompts:
       I do not have any other commitments for the day. If I accept, I will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      I will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      I will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
       Help me to make this decision. Should I accept this offer? Answer only 'Yes' or 'No' without adding anything else.
       "
@@ -372,7 +423,7 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
       You have to make the decision for them. Do you accept the offer? First, provide a reasoning and then formulate your final answer at the end in the format 'Answer: Yes' or 'Answer: No'.
       "
@@ -385,7 +436,7 @@ prompts:
     The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
  
     The offer:
-    The user will receive a reward of {reward_euros} euros and {reward_cents} cents for waiting {quant} minutes.
+    The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
 
     You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
     "
@@ -398,3 +449,4 @@ x_labels:
   distance: "Distance to walk in kilometers"
   hunger: "Waiting time in minutes"
   cot: "Waiting time in minutes with CoT"
+  country: "Waiting time in minutes in countries" # ?
