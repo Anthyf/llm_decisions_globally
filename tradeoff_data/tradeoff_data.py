@@ -4,8 +4,9 @@ Script to execute the experiments and return the .pkl data.
 """
 import os
 import pickle
+import time
 from utils.utils import initialize_models, money_quantity_trade_off, compute_experiments
-
+import asyncio
 
 def tradeoff_data(args):
     """
@@ -40,10 +41,17 @@ def tradeoff_data(args):
         experiment_outcomes = {}
 
     # Run experiments
+    # count time for all experiments
+    start_time = time.time()
+
+    tasks=[]
     for model_name, model in model_dict.items():
         print(f"\nRunning the experiment with {model_name}:")
+        
+        # count time per model
+        per_model_start_time = time.time()
 
-        results_df = compute_experiments(args, model, money_array, quant_array)
+        results_df = compute_experiments(args, model, money_array, quant_array,output_file, experiment_outcomes, model_name)
         if results_df is None:
             print(
                 f"Skipping {model_name} model due to repeated errors and moving to the next one."
@@ -52,16 +60,23 @@ def tradeoff_data(args):
 
         experiment_outcomes[model_name] = results_df
 
-        if len(experiment_outcomes[model_name]) != (
-            args["money_n"] * args["quantity_n"] * args["n_experiments"]
-        ):
+        num_countries = len(args.get("country_list", [None]))
+        expected_rows = args["money_n"] * args["quantity_n"] * args["n_experiments"] * num_countries
+        if len(experiment_outcomes[model_name]) != expected_rows:
             print(
-                f'[WARNING] Expected to save {(args["money_n"]*args["quantity_n"]*args["n_experiments"])} rows, saved {len(experiment_outcomes[model_name])}.'
+                f'[WARNING] Expected to save {expected_rows} rows, saved {len(experiment_outcomes[model_name])}.'
                 f"Consider rerunning the experiment for {model_name} model."
             )
 
         with open(output_file, "wb") as f:
             pickle.dump(experiment_outcomes, f)
         print(f"Results for {model_name} saved to {output_file}")
+        
+        per_model_end_time = time.time()
+        per_model_total_runtime = per_model_end_time - per_model_start_time
+        print(f"\nThis experiment completed in {per_model_total_runtime/60:.1f} minutes.")        
 
+    end_time = time.time()
+    total_runtime = end_time - start_time
+    print(f"\nAll experiments completed in {total_runtime/60:.1f} minutes.")
     print("\nExperiments finished successfully!")

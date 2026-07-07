@@ -16,7 +16,30 @@ args:
     type: str
     required: true
     help: "Name of the experiment for tracking results"
-    value: "test_10countries" # Fill your experiment name in "" (e.g. "experiment_1")# ""deepseek_openrouter_temp0""
+    value: &EXP_NAME "test_floating_ds_5&12" # test_25dollar_fit101_log_ds
+
+  trade_off_values:
+    type: dict
+    help: |
+      Trade‑off values per experiment
+    value:
+      *EXP_NAME:        # Same as the experiment name above
+        # distance:       [5]    # VALUES FOR PROMPTS YOU WANT TO CHECK, e.g. [20, 25, ...]
+        # pain:           [50]
+        # hunger:         [60]
+        # time:           [60]
+        country:          [60]
+        # man:            [60]
+        # woman:          [60]
+        # french:         [60]
+        # dutch:          [60]
+        # chinese:        [60]
+        # hairdresser:    [60]
+        # gp:             [60]
+        # lawyer:         [60]
+        # firstperson:    [60]
+        # cot:            [60]
+        # time_whitespace: [60]
 
   prompt:
     type: str
@@ -29,7 +52,7 @@ args:
     nargs: "+"
     type: str
     help: "List of countries to feed into the prompt templates"
-    value: !include country_list_test.txt # in total 114 countires/regions
+    value: !include country_list_test.txt # 193 UN member states; 114 countires/regions in pone paper.
       # - "Afghanistan"
       # - "Zimbabwe"
       # - "India"
@@ -45,53 +68,50 @@ args:
     nargs: "+"
     type: str
     default:
-      - gpt4o
-      - claude3_5
-      - llama3_3_70b
-      - deepseek_v3
-      - mixtral8x22b
-      - gemini2
+      - claude-haiku-4.5
+      - mistral-large-3
+      - gemini-3.5
+      - glm-5.2
+      - deepseek-v4-pro
     choices:
-      - gpt4o
-      - claude3_5
-      - llama3_3_70b
-      - deepseek_v3
-      - mixtral8x22b
-      - gemini2
-      - llama3_1_8b
-      - llama3_2_3b
-      - llama3_2_1b
+      - claude-haiku-4.5
+      - mistral-large-3
+      - gemini-3.5
+      - glm-5.2
       - deepseek-v4-pro
     help: "List of models to run experiments on"
     value: 
-      - llama3_3_70b
+      # - claude-haiku-4.5
+      # - mistral-large-3
+      # - gemini-3.5
+      # - glm-5.2
       - deepseek-v4-pro
+
     # Put the model names inside the list (e.g. ["gpt4o", "claude3_5"])
 
   n_experiments:
     type: int
     default: 1
     help: "Number of experiment repetitions"
-    value: 5 # Put the number
+    value: 10 # Put the number
 
-  # Money is provided in a log scale by default
   money_min:
     type: float
     default: -1 # 0.1 dollar maximum
     help: "Minimum money value"
-    value: -1 # Put the number
+    value: 0 # Put the number
 
   money_max:
     type: float
     default: 2 # in country sencarios, we default to 2, which means 100 dollars maximum.
     help: "Maximum money value"
-    value: 2 # Put the number
+    value: 1.39794 # Put the number # 1.39794
 
   money_n:
     type: int
     default: 101 # ligit need 101 values to bootstrap.
     help: "Number of money values to test"
-    value:  101 # Put the number
+    value: 50 # Put the number
 
   quantity_min:
     type: float
@@ -111,6 +131,32 @@ args:
     help: "Number of values for quantity to test"
     value:  1 # Put the number
 
+  # money_custom_values:
+  #   type: list
+  #   default: null
+  #   help: "If set, overrides money_min/money_max/money_n with this explicit list of values"
+  #   value:
+  #     - "4.99"
+  #     - "4.997683421"
+  #     - "4.99999"
+  #     - "5"
+  #     - "5.00"
+  #     - "5.000000"
+  #     - "5.007683421"
+  #     - "5.199999"
+  #     - "5.210111"
+  #     - "5.217683421"
+  #     - "11.99"
+  #     - "11.9956832011"
+  #     - "11.999999"
+  #     - "12"
+  #     - "12.000"
+  #     - "12.00000"
+  #     - "12.0056832011"
+  #     - "12.19998999"
+  #     - "12.20001101"
+  #     - "12.2056832011"
+
   output_dir:
     type: str
     default: "results_global" # we can fix this once we are generating the main result.
@@ -127,13 +173,13 @@ args:
     type: float
     default: 1.0
     help: "Temperature for LLM sampling"
-    value: 1.0 # Put the number
+    value: 0.0 # Put the number
 
   log_scale_money:
     action: store_true
     help: "Use logarithmic scale if true for money values, otherwise linear scale"
-    value: true
-
+    value:  false
+    
   warm_start:
     action: store_true
     default: false
@@ -145,36 +191,6 @@ args:
     default: "You are an AI assistant."
     help: "System role prompt for LLMs"
     # value: ""
-
-  trade_off_values:
-    type: dict
-    help: |
-      Trade‑off values per experiment
-    value:
-      test_10countries:        # SAME AS YOUR EXPERIMENT NAME for the bootstraping in tradeoff_table.py
-        # distance:       [5]    # VALUES FOR PROMPTS YOU WANT TO CHECK, e.g. [20, 25, ...]
-        # pain:           [50]
-        # hunger:         [60]
-        # time:           [60]
-        country:          [60]
-        # man:            [60]
-        # woman:          [60]
-        # french:         [60]
-        # dutch:          [60]
-        # chinese:        [60]
-        # hairdresser:    [60]
-        # gp:             [60]
-        # lawyer:         [60]
-        # firstperson:    [60]
-        # cot:            [60]
-        # time_whitespace: [60]
-      # I highly suspect here we can add another value, which will be taken as another experiment_name in tradeoff_table. for example:
-      # test3_countrytxt:
-        # distance:       [5]    # VALUES FOR PROMPTS YOU WANT TO CHECK, e.g. [20, 25, ...]
-        # pain:           [50]
-        # hunger:         [60]
-        # ...
-
 
 # ─────────── prompt‑templates ───────────
 prompts:

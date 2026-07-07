@@ -6,7 +6,8 @@ from google import genai
 from google.genai import types
 import anthropic
 import json
-
+import asyncio
+from openai import AsyncOpenAI
 
 class LLMWrapper(ABC):
     @abstractmethod
@@ -27,25 +28,35 @@ class OpenRouterApi(LLMWrapper):
         model,
         system_role="You are an AI assistant. You make good decisions on behalf of the human",
         temperature=0.6,
+        provider_order=None,
     ):
         self.system_role = system_role
         self.model = model
         self.temperature = temperature
-
+        self.provider_order = provider_order
         self.client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         self.messages = []
 
-    def generate_response(self, prompt, history=[], stream=False):
+    def generate_response(self, prompt, history=None, stream=False):
+        if history is None:
+            history = []
+
         messages = history + [
             {"role": "system", "content": self.system_role},
             {"role": "user", "content": prompt},
         ]
+
+        provider = {"allow_fallbacks": False}
+        if self.provider_order is not None:
+            provider["order"] = self.provider_order
 
         completion = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=self.temperature,
             stream=stream,
+            max_tokens=1000,
+            extra_body={"provider": provider},
         )
 
         if stream:

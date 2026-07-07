@@ -22,7 +22,7 @@ from requests.exceptions import RequestException
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 from sklearn.linear_model import LogisticRegression
 from utils.LLMwrapper import *
-
+import asyncio
 
 def load_config(path: Path = Path("config/config_file.yaml")) -> dict:
     """
@@ -109,25 +109,30 @@ def load_config(path: Path = Path("config/config_file.yaml")) -> dict:
 def money_quantity_trade_off(args):
     np.set_printoptions(suppress=True)
 
-    money_array = np.linspace(args["money_min"], args["money_max"], args["money_n"])
-    if args["log_scale_money"]:
-        money_array = 10**money_array
+    # floating numerical experiment
+    if args.get("money_custom_values"):
+        money_array = np.array(args["money_custom_values"], dtype=float)
+    else:
+        money_array = np.linspace(args["money_min"], args["money_max"], args["money_n"])
+        if args["log_scale_money"]:
+            money_array = 10**money_array
 
     quant_array = np.linspace(
         args["quantity_min"], args["quantity_max"], args["quantity_n"]
     )
 
+    print(money_array)
+    print(quant_array)
     return money_array, quant_array
+    
 
-
-def compute_experiments(args, model, money_array, quant_array):
+def compute_experiments(args, model, money_array, quant_array, output_file=None, experiment_outcomes=None, model_name=None):
     results_list = []  # We collect results in a list of dictionaries
 
     # Retry configuration
     max_retries = 5
     base_delay = 2  # Initial delay in seconds
     max_delay = 120  # Maximum delay in seconds
-
 
     countries = args.get("country_list", [None])
 
@@ -191,7 +196,14 @@ def compute_experiments(args, model, money_array, quant_array):
                         entry["country"] = country
                         
                     results_list.append(entry)
+                    
                     time.sleep(0.5)
+
+        if output_file is not None and experiment_outcomes is not None and model_name is not None:
+            experiment_outcomes[model_name] = pd.DataFrame(results_list)
+            with open(output_file, "wb") as f:
+                pickle.dump(experiment_outcomes, f)
+            print(f"Progress saved: {ep+1}/{args['n_experiments']}.")
 
     results_df = pd.DataFrame(results_list)
     return results_df
@@ -220,7 +232,7 @@ def generate_prompt(args, money_value, quant_value, country=None):
 
     # .format() feed in different values through the format_kwargs so that we have a series of prompts with different money and quantity values. 
     prompt= template.format(**format_kwargs)
-    # print(f"\n--- GENERATED PROMPT ---\n{prompt}\n------------------------")
+    print(f"\n--- GENERATED PROMPT ---\n{prompt}\n------------------------")
     return prompt
 
 
@@ -447,11 +459,6 @@ def initialize_models(args):
         #     "api_key": keys_dict["API_keys"]["OpenRouter"],
         #     "model": "anthropic/claude-3.5-sonnet-20241022",
         # },
-        "llama3_3_70b": {
-            "class": OpenRouterApi,
-            "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "meta-llama/llama-3.3-70b-instruct",
-        },
         # "mixtral8x22b": {
         #     "class": OpenRouterApi,
         #     "api_key": keys_dict["API_keys"]["OpenRouter"],
@@ -467,26 +474,32 @@ def initialize_models(args):
         #     "api_key": keys_dict["API_keys"]["OpenRouter"],
         #     "model": "deepseek/deepseek-chat-v3-0324",
         # },
+        "mistral-large-3": {
+            "class": OpenRouterApi,
+            "api_key": keys_dict["API_keys"]["OpenRouter"],
+            "model": "mistralai/mistral-large-2512",
+        },
         "deepseek-v4-pro": {
             "class": OpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "deepseek/deepseek-v4-pro",
+            "provider_order": ["streamlake/fp8"],
         },
-        # "llama3_1_8b": {
-        #     "class": OpenRouterApi,
-        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
-        #     "model": "meta-llama/llama-3.1-8b-instruct",
-        # },
-        # "llama3_2_3b": {
-        #     "class": OpenRouterApi,
-        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
-        #     "model": "meta-llama/llama-3.2-3b-instruct",
-        # },
-        # "llama3_2_1b": {
-        #     "class": OpenRouterApi,
-        #     "api_key": keys_dict["API_keys"]["OpenRouter"],
-        #     "model": "meta-llama/llama-3.2-1b-instruct",
-        # },
+        "claude-haiku-4.5": {
+            "class": OpenRouterApi,
+            "api_key": keys_dict["API_keys"]["OpenRouter"],
+            "model": "anthropic/claude-haiku-4.5",
+        },
+        "glm-5.2": {
+            "class": OpenRouterApi,
+            "api_key": keys_dict["API_keys"]["OpenRouter"],
+            "model": "z-ai/glm-5.2",
+        },
+        "gemini-3.5": {
+            "class": OpenRouterApi,
+            "api_key": keys_dict["API_keys"]["OpenRouter"],
+            "model": "google/gemini-3.5-flash",
+        },
     }
 
     model_dict = {}
@@ -498,7 +511,8 @@ def initialize_models(args):
                 model=config["model"],
                 system_role=args["system_role"],
                 temperature=args["temperature"],
-            )
+                provider_order=config.get("provider_order"),
+                )
 
         else:
             print(f"Warning: Unknown model '{model_name}' requested. Skipping.")
@@ -702,7 +716,7 @@ def LR_transition_values(args, data, model_name):
             # results.append((country, q, x_tran))
 
             # if there are scattered yes or no but not a solid and clear transition curve a logit can fit, the returned transition value could be 
-            # out of the range of our given 0.1 dollar to 100 dollar, for example a number over 10 thousand. So we cap them:
+            # out of the range of our given 1 dollar to 25 dollar, for example a number over 10 thousand. So we cap them:
             if args["log_scale_money"]:
                 x_tran = 10**x_tran
                 money_min_real = 10**args["money_min"]
@@ -721,7 +735,14 @@ def LR_transition_values(args, data, model_name):
 
     results_df = pd.DataFrame(results, columns=["country", "quantity", "transition"])
 
-    pickle_filename = f'{args["output_dir"]}/{args["prompt_type"]}/{args["experiment_name"]}/LR_results.pkl'
+    # pickle_filename = f'{args["output_dir"]}/{args["prompt_type"]}/{args["experiment_name"]}/LR_results.pkl'
+    # Change the filename based on log_scale_money
+    if args["log_scale_money"]:
+        pkl_name = "LR_results_is_log.pkl"
+    else:
+        pkl_name = "LR_results.pkl"
+
+    pickle_filename = f'{args["output_dir"]}/{args["prompt_type"]}/{args["experiment_name"]}/{pkl_name}'
 
     try:
         with open(pickle_filename, "rb") as f:
