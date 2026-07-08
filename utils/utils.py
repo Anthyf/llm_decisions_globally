@@ -126,89 +126,170 @@ def money_quantity_trade_off(args):
     return money_array, quant_array
     
 
+# def compute_experiments(args, model, money_array, quant_array, output_file=None, experiment_outcomes=None, model_name=None):
+#     results_list = []  # We collect results in a list of dictionaries
+
+#     # Retry configuration
+#     max_retries = 5
+#     base_delay = 2  # Initial delay in seconds
+#     max_delay = 120  # Maximum delay in seconds
+
+#     countries = args.get("country_list", [None])
+
+#     for ep in range(args["n_experiments"]):
+#         print(f"\tExperiment no. {ep+1}")
+
+#         for country in countries:
+#             if country:
+#                 print(f"\t\tRunning country: {country}")
+
+#             for quant_value in quant_array:
+#                 for money_value in money_array:
+#                     prompt = generate_prompt(args, money_value, quant_value, country=country)
+
+#                     retry_count = 0
+#                     while retry_count <= max_retries:
+#                         try:
+#                             response = model.generate_response(prompt=prompt)
+#                             break
+#                         except (RequestException, MaxRetryError, NewConnectionError) as e:
+#                             retry_count += 1
+
+#                             if retry_count > max_retries:
+#                                 print(f"[INFO] Fatal error after {max_retries} retries:")
+#                                 print(f"\t{e}")
+#                                 print("Saving partial results and exiting.")
+
+#                                 return pd.DataFrame(results_list) if results_list else None
+
+#                             delay = min(
+#                                 base_delay * (2 ** (retry_count - 1))
+#                                 + random.uniform(0, 1),
+#                                 max_delay,
+#                             )
+#                             print(
+#                                 f"[INFO] Network error on attempt {retry_count}/{max_retries}:"
+#                             )
+#                             print(f"\t{e}\nRetrying in {delay:.1f} seconds...")
+#                             time.sleep(delay)
+#                             print("Retrying...")
+#                         except Exception as e:
+#                             print(
+#                                 f"Unexpected error: {e}, \n[INFO] Might be due to not enough credits. Retrying..."
+#                             )
+#                             retry_count += 1
+#                             if retry_count > max_retries:
+#                                 print(
+#                                     f"[INFO] Fatal error after {max_retries} retries. Saving partial results."
+#                                 )
+#                                 return pd.DataFrame(results_list) if results_list else None
+#                             time.sleep(30)
+
+#                     entry = {
+#                         "reward_value": round(float(money_value), 6),
+#                         "quantity": round(float(quant_value), 6),
+#                         "experiment": ep + 1,
+#                         "output": response,
+#                     }
+
+#                     if country is not None:
+#                         entry["country"] = country
+                        
+#                     results_list.append(entry)
+                    
+#                     time.sleep(0.5)
+
+#         if output_file is not None and experiment_outcomes is not None and model_name is not None:
+#             experiment_outcomes[model_name] = pd.DataFrame(results_list)
+#             with open(output_file, "wb") as f:
+#                 pickle.dump(experiment_outcomes, f)
+#             print(f"Progress saved: {ep+1}/{args['n_experiments']}.")
+
+#     results_df = pd.DataFrame(results_list)
+#     return results_df
+
 def compute_experiments(args, model, money_array, quant_array, output_file=None, experiment_outcomes=None, model_name=None):
-    results_list = []  # We collect results in a list of dictionaries
+    results_list = []  
 
     # Retry configuration
     max_retries = 5
-    base_delay = 2  # Initial delay in seconds
-    max_delay = 120  # Maximum delay in seconds
-
+    base_delay = 2  
+    max_delay = 120  
     countries = args.get("country_list", [None])
 
-    for ep in range(args["n_experiments"]):
-        print(f"\tExperiment no. {ep+1}")
+    # We wrap the core logic in an async function so we can manage the event loop
+    async def _run_experiments_async():
+        # IMPORTANT: Semaphore limits concurrent requests to prevent HTTP 429 (Too Many Requests) errors.
+        # You can adjust this number up or down based on your OpenRouter tier limits.
+        semaphore = asyncio.Semaphore(10) 
 
-        for country in countries:
-            if country:
-                print(f"\t\tRunning country: {country}")
-
-            for quant_value in quant_array:
-                for money_value in money_array:
-                    prompt = generate_prompt(args, money_value, quant_value, country=country)
-
-                    retry_count = 0
-                    while retry_count <= max_retries:
-                        try:
-                            response = model.generate_response(prompt=prompt)
-                            break
-                        except (RequestException, MaxRetryError, NewConnectionError) as e:
-                            retry_count += 1
-
-                            if retry_count > max_retries:
-                                print(f"[INFO] Fatal error after {max_retries} retries:")
-                                print(f"\t{e}")
-                                print("Saving partial results and exiting.")
-
-                                return pd.DataFrame(results_list) if results_list else None
-
-                            delay = min(
-                                base_delay * (2 ** (retry_count - 1))
-                                + random.uniform(0, 1),
-                                max_delay,
-                            )
-                            print(
-                                f"[INFO] Network error on attempt {retry_count}/{max_retries}:"
-                            )
-                            print(f"\t{e}\nRetrying in {delay:.1f} seconds...")
-                            time.sleep(delay)
-                            print("Retrying...")
-                        except Exception as e:
-                            print(
-                                f"Unexpected error: {e}, \n[INFO] Might be due to not enough credits. Retrying..."
-                            )
-                            retry_count += 1
-                            if retry_count > max_retries:
-                                print(
-                                    f"[INFO] Fatal error after {max_retries} retries. Saving partial results."
-                                )
-                                return pd.DataFrame(results_list) if results_list else None
-                            time.sleep(30)
-
-                    entry = {
-                        "reward_value": round(float(money_value), 6),
-                        "quantity": round(float(quant_value), 6),
-                        "experiment": ep + 1,
-                        "output": response,
-                    }
-
-                    if country is not None:
-                        entry["country"] = country
+        async def _fetch_and_record(ep, country, quant_value, money_value):
+            prompt = generate_prompt(args, money_value, quant_value, country=country)
+            
+            # The semaphore ensures only 10 of these blocks run simultaneously
+            async with semaphore:
+                retry_count = 0
+                while retry_count <= max_retries:
+                    try:
+                        # Call the new async generate_response method
+                        response = await model.generate_response(prompt=prompt)
+                        break
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count > max_retries:
+                            print(f"[INFO] Fatal error after {max_retries} retries for prompt:\n{prompt}")
+                            print(f"\t{e}")
+                            return None # Return None on failure to skip this entry
                         
-                    results_list.append(entry)
-                    
-                    time.sleep(0.5)
+                        delay = min(base_delay * (2 ** (retry_count - 1)) + random.uniform(0, 1), max_delay)
+                        print(f"[INFO] Network error on attempt {retry_count}/{max_retries}: {e}")
+                        print(f"Retrying in {delay:.1f} seconds...")
+                        
+                        # Use asyncio.sleep instead of time.sleep to avoid blocking the event loop!
+                        await asyncio.sleep(delay) 
+                
+                # Build and return the successful entry
+                entry = {
+                    "reward_value": round(float(money_value), 6),
+                    "quantity": round(float(quant_value), 6),
+                    "experiment": ep + 1,
+                    "output": response,
+                }
+                if country is not None:
+                    entry["country"] = country
+                return entry
 
-        if output_file is not None and experiment_outcomes is not None and model_name is not None:
-            experiment_outcomes[model_name] = pd.DataFrame(results_list)
-            with open(output_file, "wb") as f:
-                pickle.dump(experiment_outcomes, f)
-            print(f"Progress saved: {ep+1}/{args['n_experiments']}.")
+        # Iterate experiment by experiment to preserve your checkpoint saving logic
+        for ep in range(args["n_experiments"]):
+            print(f"\tExperiment no. {ep+1} (Executing concurrently...)")
+            
+            tasks = []
+            for country in countries:
+                if country:
+                    print(f"\t\tQueueing country: {country}")
+                for quant_value in quant_array:
+                    for money_value in money_array:
+                        # Create a background task for every combination
+                        tasks.append(_fetch_and_record(ep, country, quant_value, money_value))
+            
+            # Fire all queued tasks for this experiment simultaneously and wait for them to finish
+            batch_results = await asyncio.gather(*tasks)
+            
+            # Filter out any calls that failed after 5 retries (where response is None)
+            valid_results = [res for res in batch_results if res is not None]
+            results_list.extend(valid_results)
 
-    results_df = pd.DataFrame(results_list)
-    return results_df
+            # Save progress at the end of each experiment loop
+            if output_file is not None and experiment_outcomes is not None and model_name is not None:
+                experiment_outcomes[model_name] = pd.DataFrame(results_list)
+                with open(output_file, "wb") as f:
+                    pickle.dump(experiment_outcomes, f)
+                print(f"Progress saved: {ep+1}/{args['n_experiments']}.")
 
+    # Execute the asynchronous engine from standard synchronous code
+    asyncio.run(_run_experiments_async())
 
+    return pd.DataFrame(results_list)
 
 def generate_prompt(args, money_value, quant_value, country=None):
     dollars = int(money_value)
@@ -232,7 +313,7 @@ def generate_prompt(args, money_value, quant_value, country=None):
 
     # .format() feed in different values through the format_kwargs so that we have a series of prompts with different money and quantity values. 
     prompt= template.format(**format_kwargs)
-    print(f"\n--- GENERATED PROMPT ---\n{prompt}\n------------------------")
+    # print(f"\n--- GENERATED PROMPT ---\n{prompt}\n------------------------")
     return prompt
 
 
@@ -475,28 +556,28 @@ def initialize_models(args):
         #     "model": "deepseek/deepseek-chat-v3-0324",
         # },
         "mistral-large-3": {
-            "class": OpenRouterApi,
+            "class": AsyncOpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "mistralai/mistral-large-2512",
         },
         "deepseek-v4-pro": {
-            "class": OpenRouterApi,
+            "class": AsyncOpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "deepseek/deepseek-v4-pro",
             "provider_order": ["streamlake/fp8"],
         },
         "claude-haiku-4.5": {
-            "class": OpenRouterApi,
+            "class": AsyncOpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "anthropic/claude-haiku-4.5",
         },
         "glm-5.2": {
-            "class": OpenRouterApi,
+            "class": AsyncOpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "z-ai/glm-5.2",
         },
         "gemini-3.5": {
-            "class": OpenRouterApi,
+            "class": AsyncOpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
             "model": "google/gemini-3.5-flash",
         },

@@ -20,8 +20,7 @@ class LLMWrapper(ABC):
         """
         pass
 
-
-class OpenRouterApi(LLMWrapper):
+class AsyncOpenRouterApi(LLMWrapper):
     def __init__(
         self,
         api_key,
@@ -34,10 +33,10 @@ class OpenRouterApi(LLMWrapper):
         self.model = model
         self.temperature = temperature
         self.provider_order = provider_order
-        self.client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        self.client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         self.messages = []
 
-    def generate_response(self, prompt, history=None, stream=False):
+    async def generate_response(self, prompt, history=None, stream=False):
         if history is None:
             history = []
 
@@ -50,7 +49,7 @@ class OpenRouterApi(LLMWrapper):
         if self.provider_order is not None:
             provider["order"] = self.provider_order
 
-        completion = self.client.chat.completions.create(
+        completion = await self.client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=self.temperature,
