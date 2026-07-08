@@ -6,7 +6,7 @@ import os
 import pickle
 import time
 from utils.utils import initialize_models, money_quantity_trade_off, compute_experiments
-import asyncio
+
 
 def tradeoff_data(args):
     """
@@ -44,7 +44,6 @@ def tradeoff_data(args):
     # count time for all experiments
     start_time = time.time()
 
-    tasks=[]
     for model_name, model in model_dict.items():
         print(f"\nRunning the experiment with {model_name}:")
         
