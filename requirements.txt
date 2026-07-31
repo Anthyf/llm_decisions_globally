@@ -120,3 +120,6 @@ wcwidth==0.2.13
 websockets==15.0.1
 yarl==1.18.3
 zipp==1.0.0
+plotly
+nbformat>=4.2.0
+kaleido

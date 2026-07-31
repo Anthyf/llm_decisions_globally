@@ -32,7 +32,7 @@ def tradeoff_data(args):
     if args["warm_start"] and os.path.exists(output_file):
         with open(output_file, "rb") as f:
             experiment_outcomes = pickle.load(f)
-        print(f"\nWarm start enabled: loaded existing data from {output_file}")
+        print(f"\n[WARM START ENABLED]: loaded existing data from {output_file}")
     else:
         print(
             f'\nStarting new experiment: "{args["experiment_name"]}",'

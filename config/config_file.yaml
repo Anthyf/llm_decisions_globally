@@ -7,8 +7,15 @@
 api_keys:
   OpenAI: # Fill in "" 
   Claude: # Fill in ""
-  Google: # Fill in ""
   OpenRouter: # Fill in ""
+
+# ─────────── concurrency control ───────────
+semaphore: 
+  type: int
+  default: 50
+  help: "how much concurrent requests to send to the LLM API. This is to avoid HTTP 429 errors."
+  value: 100
+
 
 # ─────────── CLI defaults ───────────
 args:
@@ -16,7 +23,7 @@ args:
     type: str
     required: true
     help: "Name of the experiment for tracking results"
-    value: &EXP_NAME "test_floating_ds_5&12" # test_25dollar_fit101_log_ds
+    value: &EXP_NAME "193countries_25dollar" # test_25dollar_fit101_log_ds
 
   trade_off_values:
     type: dict
@@ -52,7 +59,7 @@ args:
     nargs: "+"
     type: str
     help: "List of countries to feed into the prompt templates"
-    value: !include country_list_test.txt # 193 UN member states; 114 countires/regions in pone paper.
+    value: !include country_list_full.txt # 193 UN member states; 114 countires/regions in pone paper.
       # - "Afghanistan"
       # - "Zimbabwe"
       # - "India"
@@ -70,21 +77,21 @@ args:
     default:
       - claude-haiku-4.5
       - mistral-large-3
-      - gemini-3.5
+      - gpt-5.4-mini
       - glm-5.2
       - deepseek-v4-pro
     choices:
       - claude-haiku-4.5
       - mistral-large-3
-      - gemini-3.5
+      - gpt-5.4-mini
       - glm-5.2
       - deepseek-v4-pro
     help: "List of models to run experiments on"
     value: 
-      # - claude-haiku-4.5
-      # - mistral-large-3
-      # - gemini-3.5
-      # - glm-5.2
+      - claude-haiku-4.5
+      - mistral-large-3
+      - gpt-5.4-mini
+      - glm-5.2
       - deepseek-v4-pro
 
     # Put the model names inside the list (e.g. ["gpt4o", "claude3_5"])
@@ -93,19 +100,19 @@ args:
     type: int
     default: 1
     help: "Number of experiment repetitions"
-    value: 10 # Put the number
+    value: 5 # Put the number
 
   money_min:
     type: float
     default: -1 # 0.1 dollar maximum
     help: "Minimum money value"
-    value: 0 # Put the number
+    value: 1 # Put the number
 
   money_max:
     type: float
     default: 2 # in country sencarios, we default to 2, which means 100 dollars maximum.
     help: "Maximum money value"
-    value: 1.39794 # Put the number # 1.39794
+    value: 25 # Put the number # 1.39794
 
   money_n:
     type: int
@@ -131,35 +138,9 @@ args:
     help: "Number of values for quantity to test"
     value:  1 # Put the number
 
-  # money_custom_values:
-  #   type: list
-  #   default: null
-  #   help: "If set, overrides money_min/money_max/money_n with this explicit list of values"
-  #   value:
-  #     - "4.99"
-  #     - "4.997683421"
-  #     - "4.99999"
-  #     - "5"
-  #     - "5.00"
-  #     - "5.000000"
-  #     - "5.007683421"
-  #     - "5.199999"
-  #     - "5.210111"
-  #     - "5.217683421"
-  #     - "11.99"
-  #     - "11.9956832011"
-  #     - "11.999999"
-  #     - "12"
-  #     - "12.000"
-  #     - "12.00000"
-  #     - "12.0056832011"
-  #     - "12.19998999"
-  #     - "12.20001101"
-  #     - "12.2056832011"
-
   output_dir:
     type: str
-    default: "results_global" # we can fix this once we are generating the main result.
+    default: "results" # we can fix this once we are generating the main result.
     help: "Directory to save results"
     value: # Fill in "" (e.g. "results")
 
