@@ -123,3 +123,5 @@ zipp==1.0.0
 plotly
 nbformat>=4.2.0
 kaleido
+statsmodels
+country_converter
