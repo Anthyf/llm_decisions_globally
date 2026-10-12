@@ -12,8 +12,6 @@ A framework for this work:
 
 (iii) We uncover systematic geographic patterns across five LLMs and discuss the potential impact of these patterns. 
 
-## Main Repository structure
-
 ## Main Repository Structure
 
 | Folder | Description | Subfolders |
