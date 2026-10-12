@@ -5,7 +5,7 @@ Script to execute the experiments and return the .pkl data.
 import os
 import pickle
 import time
-from utils.utils import initialize_models, money_quantity_trade_off, compute_experiments
+from utils.utils_base import initialize_models, money_quantity_trade_off, compute_experiments # remember to change back to utils when country
 
 
 def tradeoff_data(args):
@@ -59,11 +59,10 @@ def tradeoff_data(args):
 
         experiment_outcomes[model_name] = results_df
 
-        num_countries = len(args.get("country_list", [None]))
-        expected_rows = args["money_n"] * args["quantity_n"] * args["n_experiments"] * num_countries
+        expected_rows = args["money_n"] * args["quantity_n"] * args["n_experiments"]
         if len(experiment_outcomes[model_name]) != expected_rows:
             print(
-                f'[WARNING] Expected to save {expected_rows} rows, saved {len(experiment_outcomes[model_name])}.'
+                f'[WARNING] Expected to save {expected_rows} rows, saved {len(experiment_outcomes[model_name])}. '
                 f"Consider rerunning the experiment for {model_name} model."
             )
 

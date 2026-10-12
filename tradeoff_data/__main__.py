@@ -3,7 +3,7 @@
 Main script to generate data for LLM Trade-Offs framework.
 """
 
-from utils.utils import load_config
+from utils.utils_base import load_config # remember to change back to utils when country
 from tradeoff_data.tradeoff_data import tradeoff_data
 
 

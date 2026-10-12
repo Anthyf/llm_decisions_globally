@@ -4,7 +4,7 @@ Script to plot the results of the experiments.
 """
 import pickle
 import copy
-from utils.utils import LR_transition_values, LR_values_per_quantity_table
+from utils.utils_base import LR_transition_values, LR_values_per_quantity_table
 from pathlib import Path
 
 
@@ -48,10 +48,15 @@ def tradeoff_table(args):
             continue
 
         exp_name = p.parent.name  # …/<prompt_type>/<experiment_name>/data_log.pkl, so p.parent is the folder of experiment_name, and p.parent.name is the name of that folder, which is the experiment_name.
+        prompt_type = p.parent.parent.name  # …/<prompt_type>/<experiment_name>/data_log.pkl, so p.parent.parent is the folder of prompt_type, and p.parent.parent.name is the name of that folder, which is the prompt_type.
+        
         if exp_name not in experiment_names:
             continue
 
-        prompt_type = p.parent.parent.name  # …/<prompt_type>/<experiment_name>/data_log.pkl, so p.parent.parent is the folder of prompt_type, and p.parent.parent.name is the name of that folder, which is the prompt_type.
+                       # NEW: only take files from the prompt_type selected in the config
+        if prompt_type != args["prompt_type"]:
+            continue
+
         data_files.append((p, exp_name, prompt_type, p.name == "data_log.pkl"))
 
     if not data_files:

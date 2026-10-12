@@ -24,6 +24,8 @@ from sklearn.linear_model import LogisticRegression
 from utils.LLMwrapper import *
 import asyncio
 
+
+
 def load_config(path: Path = Path("config/config_file.yaml")) -> dict:
     """
     Load and validate configuration from a single YAML file.
@@ -131,7 +133,8 @@ def compute_experiments(args, model, money_array, quant_array, output_file=None,
     # Retry configuration
     max_retries = 5
     base_delay = 2  
-    max_delay = 120  
+    max_delay = 120
+    max_none_per_country=7  
     countries = args.get("country_list", [None])
     semaphore_value=args.get("semaphore")
 
@@ -186,7 +189,7 @@ def compute_experiments(args, model, money_array, quant_array, output_file=None,
                     except Exception as e:
                         retry_count += 1
                         if retry_count > max_retries:
-                            print(f"[INFO: Return None] {context_str} | Fatal error after {max_retries} retries for prompt: \n{prompt}")
+                            print(f"[INFO: Return None] {context_str} | Fatal error after {max_retries} retries.") # for prompt: \n{prompt}
                             print(f"\t{e}")
                             entry = {
                                 "reward_value": round(float(money_value), 6),
@@ -238,15 +241,23 @@ def compute_experiments(args, model, money_array, quant_array, output_file=None,
                     for money_value in money_array
                 ]
 
-                # Gather just this country's ~50 tasks (not all 10,000 at once)
+                # Gather just this country's 50 tasks (not all 10,000 at once)
                 country_results = await asyncio.gather(*tasks)
-                results_list.extend(country_results)
 
                 n_failed = sum(1 for r in country_results if r.get("output") is None)
                 if n_failed:
                     print(f"[INFO] experiment={ep_num}, country={country}: "
                           f"{n_failed}/{len(country_results)} rows returns an answer None.")
-
+                
+                # --- stop the whole script if too many failures ---
+                if n_failed > max_none_per_country:
+                    raise RuntimeError(
+                        f"Aborting: experiment={ep_num}, country={country} had "
+                        f"{n_failed} None outputs (limit {max_none_per_country}). "
+                        f"Previous countries are already saved; this one was NOT saved."
+                    )
+                
+                results_list.extend(country_results)
                 # --- save after EVERY country, not just every experiment ---
                 _save()
                 # print(f"Progress saved: experiment {ep_num}/{args['n_experiments']}, country={country}.")
@@ -282,199 +293,6 @@ def generate_prompt(args, money_value, quant_value, country=None):
     return prompt
 
 
-# The following three functions: make_heat_maps, compute_edges, combine_charts are only for generating heatmaps. 
-def make_heat_maps(args, df, model_name):
-    """
-    Generate and save a heatmap for one model's experiment results.
-    On log scale, we do the plot in log10-space so every cell is the same
-    height visually, but labelled with the true money values.
-    """
-    df = df.copy()
-    if args["prompt"] == "cot":
-        df["output_binary"] = df["output"].map(
-            lambda x: (
-                1
-                if re.search(
-                    r"answer:\s*yes\s*[.!?]?\s*", str(x or ""), flags=re.IGNORECASE
-                )
-                else (
-                    0
-                    if re.search(
-                        r"answer:\s*no\s*[.!?]?\s*", str(x or ""), flags=re.IGNORECASE
-                    )
-                    else np.nan
-                )
-            )
-        )
-    else:
-        df["output_numeric"] = df["output"].map(
-            lambda x: (
-                1
-                if re.search(r"\byes\b", x.strip(), flags=re.IGNORECASE)
-                else (
-                    0
-                    if re.search(r"\bno\b", x.strip(), flags=re.IGNORECASE)
-                    else np.nan
-                )
-            )
-        )
-
-    reward_values = np.sort(df["reward_value"].unique())
-    quants = np.sort(df["quantity"].unique())
-    slices = []
-    for _, g in df.groupby("experiment"):
-        piv = (
-            g.pivot(index="reward_value", columns="quantity", values="output_numeric")
-            .reindex(index=reward_values, columns=quants)
-            .fillna(0)
-        )
-        slices.append(piv.values)
-    mean_array = np.mean(np.stack(slices, axis=0), axis=0)
-    quant_edges = compute_edges(quants)
-
-    if args["log_scale_money"]:
-        log_centers = np.log10(reward_values)
-        log_edges = compute_edges(log_centers, log_scale=False)
-        y_edges = log_edges
-        ylabel = "Money offered in dollars (log scale)"
-        y_ticks = log_centers
-        y_tick_labels = [f"{v:.2f}".rstrip("0").rstrip(".") for v in reward_values]
-    else:
-        y_edges = compute_edges(reward_values, log_scale=False)
-        ylabel = "Money offered in dollars"
-        mn = args.get("money_n", len(reward_values))
-        if mn <= 5:
-            y_ticks = reward_values
-        else:
-            y_ticks = reward_values[::2]
-        y_tick_labels = [f"{v:.1f}" for v in y_ticks]
-
-    XX, YY = np.meshgrid(quant_edges, y_edges)
-    fig, ax = plt.subplots(figsize=(8, 6))
-    pcm = ax.pcolormesh(
-        XX, YY, mean_array, shading="auto", cmap="viridis", vmin=0, vmax=1
-    )
-    cbar = fig.colorbar(pcm, ax=ax)
-    cbar.set_label("Probability of Yes")
-
-    ax.set_xticks(quants)
-    ax.xaxis.set_major_formatter(ticker.FormatStrFormatter("%d"))
-    ax.set_xlabel(args["x_labels"][args["prompt_type"]])
-
-    ax.set_yticks(y_ticks)
-    ax.set_yticklabels(y_tick_labels)
-    ax.set_ylabel(ylabel)
-
-    ax.set_title(model_name)
-    plt.tight_layout()
-
-    plot_dir = os.path.join(
-        args["figures_dir"], args["prompt_type"], args["experiment_name"]
-    )
-    os.makedirs(plot_dir, exist_ok=True)
-    suffix = "_log" if args["log_scale_money"] else ""
-    plot_file = os.path.join(plot_dir, f"{model_name}{suffix}.png")
-    plt.savefig(plot_file, dpi=300)
-    plt.close(fig)
-
-    print(f"Saved heatmap for {model_name} to {plot_file}")
-    return plot_dir
-
-
-def compute_edges(centers, log_scale=False):
-    """
-    Given a sorted 1D array of “center” points, compute the bin edges
-    for pcolormesh so that each center lies in the middle of its bin.
-
-    Parameters
-    ----------
-    centers : array-like
-        Sorted array of bin centers (strictly increasing).
-    log_scale : bool
-        If False: compute edges in linear space.
-        If True: compute edges in log10‐space (i.e. bins are equal in decades).
-
-    Returns
-    -------
-    edges : np.ndarray
-        Array of length len(centers)+1 of bin edges.
-    """
-    centers = np.asarray(centers, dtype=float)
-    n = len(centers)
-
-    if n == 0:
-        return np.array([])
-    if n == 1:
-        c = centers[0]
-        if log_scale:
-            factor = np.sqrt(10)
-            return np.array([c / factor, c * factor])
-        else:
-            return np.array([c - 0.5, c + 0.5])
-
-    if log_scale:
-        logc = np.log10(centers)
-        mids = (logc[:-1] + logc[1:]) / 2.0
-        log_edges = np.empty(n + 1)
-        log_edges[1:-1] = mids
-        log_edges[0] = logc[0] - (mids[0] - logc[0])
-        log_edges[-1] = logc[-1] + (logc[-1] - mids[-1])
-        return 10**log_edges
-
-    else:
-        diffs = np.diff(centers)
-        mids = centers[:-1] + diffs / 2.0
-        edges = np.empty(n + 1)
-        edges[1:-1] = mids
-        edges[0] = centers[0] - diffs[0] / 2.0
-        edges[-1] = centers[-1] + diffs[-1] / 2.0
-        return edges
-
-
-def combine_charts(args, plot_dir, max_cols=3):
-    """
-    Combine chart images stored in a directory into a composite figure,
-    automatically sizing rows/cols to fit the number of models.
-    """
-    file_list = sorted(
-        os.path.join(plot_dir, f)
-        for f in os.listdir(plot_dir)
-        if f.lower().endswith(".png")
-    )
-    n_plots = len(file_list)
-    n_cols = min(n_plots, max_cols)
-    n_cols = max(1, n_cols)
-
-    # compute rows and clamp to at least 1
-    n_rows = math.ceil(n_plots / n_cols)
-    n_rows = max(1, n_rows)
-
-    # create the grid
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
-    axes_flat = axes.flatten()
-
-    for i, filepath in enumerate(file_list):
-        img = mpimg.imread(filepath)
-        ax = axes_flat[i]
-        ax.imshow(img)
-        model_name = os.path.splitext(os.path.basename(filepath))[0]
-        ax.set_title(model_name)
-        ax.axis("off")
-
-    for ax in axes_flat[n_plots:]:
-        ax.axis("off")
-
-    prompt = args["prompt_type"]
-    log_tag = "_log" if args.get("log_scale_money") else ""
-    plt.suptitle(f"Heatmaps of {prompt}/money trade-off scenario", fontsize=20)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-
-    out_name = f"{plot_dir}/{prompt}_heatmaps_combined{log_tag}.png"
-    plt.savefig(out_name, dpi=300)
-    print("Combined chart saved to", out_name)
-    plt.close(fig)
-
-
 def initialize_models(args):
     """
     Initialize LLM models based on command line arguments.
@@ -493,13 +311,18 @@ def initialize_models(args):
         "mistral-large-3": {
             "class": AsyncOpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "mistralai/mistral-large-2512",
-            "provider_order": ["mistral"],
+            "model": "mistralai/mistral-large-2512", 
+            "provider_order": ["mistral/zdr"], # used to be mistral
         },
+        # "mistral-large-3": {
+        #     "class": AsyncMistralApi,
+        #     "api_key": keys_dict["API_keys"]["Mistral"],
+        #     "model": "mistral-large-2512",  
+        # },
         "deepseek-v4-pro": {
             "class": AsyncOpenRouterApi,
             "api_key": keys_dict["API_keys"]["OpenRouter"],
-            "model": "deepseek/deepseek-v4-pro",
+            "model": "deepseek/deepseek-v4-pro", #0423 version
             "provider_order": ["streamlake/fp8"],
         },
         "glm-5.2": {

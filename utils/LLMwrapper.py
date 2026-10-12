@@ -127,58 +127,41 @@ class AsyncClaudeApi(LLMWrapper):
         return message.content[0].text
 
 
-# class GeminiApi(LLMWrapper):
-#     def __init__(
-#         self,
-#         api_key,
-#         model,
-#         system_role="You are an AI assistant. You make good decisions on behalf of the human",
-#         temperature=0.6,
-#     ):
+class AsyncMistralApi(LLMWrapper):
+    def __init__(
+        self,
+        api_key,
+        model,
+        system_role="You are an AI assistant. You make good decisions on behalf of the human",
+        temperature=0.6,
+        max_tokens=1000,
+        **kwargs,  # swallows extras like provider_order so it's a drop-in swap
+    ):
+        self.system_role = system_role
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.client = AsyncOpenAI(base_url="https://api.mistral.ai/v1", api_key=api_key)
+        self.messages = []
 
-#         self.system_role = system_role
-#         self.model = model
-#         self.client = genai.Client(api_key=api_key)
-#         self.temperature = temperature
+    async def generate_response(self, prompt, history=None, stream=False):
+        if history is None:
+            history = []
 
-#     def generate_response(self, prompt):
+        messages = (
+            [{"role": "system", "content": self.system_role}]
+            + history
+            + [{"role": "user", "content": prompt}]
+        )
 
-#         response = self.client.models.generate_content(
-#             model=self.model,
-#             config=types.GenerateContentConfig(
-#                 system_instruction=self.system_role, temperature=self.temperature
-#             ),
-#             contents=prompt,
-#         )
+        completion = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+            stream=stream,
+            max_tokens=self.max_tokens,
+        )
 
-#         return response.text
-
-
-# class DeepSeekApi(LLMWrapper):
-
-#     def __init__(
-#         self,
-#         api_key,
-#         model,
-#         system_role="You are an AI assistant. You make good decisions on behalf of the human",
-#         temperature=0.6,
-#         base_url="https://api.deepseek.com/v1",
-#     ):
-#         self.system_role = system_role
-#         self.model = model
-#         self.messages = []
-#         self.temperature = temperature
-#         self.base_url = base_url
-#         self.client = OpenAI(api_key=api_key, base_url=self.base_url)
-
-#     def generate_response(self, prompt):
-
-#         messages = [
-#             {"role": "system", "content": self.system_role},
-#             {"role": "user", "content": prompt},
-#         ]
-#         completion = self.client.chat.completions.create(
-#             model=self.model, messages=messages, temperature=self.temperature
-#         )
-
-#         return completion.choices[0].message.content
+        if stream:
+            return completion
+        return completion.choices[0].message.content

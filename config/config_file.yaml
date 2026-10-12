@@ -14,8 +14,7 @@ semaphore:
   type: int
   default: 50
   help: "how much concurrent requests to send to the LLM API. This is to avoid HTTP 429 errors."
-  value: 100
-
+  value: 5
 
 # ─────────── CLI defaults ───────────
 args:
@@ -23,7 +22,7 @@ args:
     type: str
     required: true
     help: "Name of the experiment for tracking results"
-    value: &EXP_NAME "193countries_25dollar" # test_25dollar_fit101_log_ds
+    value: &EXP_NAME rt3 # change to rt1-rt3 for different prompt templates
 
   trade_off_values:
     type: dict
@@ -31,35 +30,26 @@ args:
       Trade‑off values per experiment
     value:
       *EXP_NAME:        # Same as the experiment name above
-        # distance:       [5]    # VALUES FOR PROMPTS YOU WANT TO CHECK, e.g. [20, 25, ...]
-        # pain:           [50]
-        # hunger:         [60]
-        # time:           [60]
-        country:          [60]
-        # man:            [60]
-        # woman:          [60]
-        # french:         [60]
-        # dutch:          [60]
-        # chinese:        [60]
-        # hairdresser:    [60]
-        # gp:             [60]
-        # lawyer:         [60]
-        # firstperson:    [60]
-        # cot:            [60]
-        # time_whitespace: [60]
+        base_1:          [60]
+        # base_2:          [60]
+        # base_3:          [60]
+        # country_1:       [60]
+        # country_2:       [60]
+        # country_3:       [60]
+
 
   prompt:
     type: str
     required: true
-    choices: ["country", "time", "distance", "hunger", "pain", "man", "woman", "french", "dutch", "chinese", "hairdresser", "gp", "lawyer", "firstperson", "cot", "time_whitespace", "dollar", "yuan", "distance_safe"]
+    choices: ["base_1","base_2", "base_3", "country_1", "country_2", "country_3"]
     help: "Which prompt to use"
-    value: "country" # Fill inside the "" only one prompt type (e.g. "time")
+    value: "base_1" # Fill inside the "" only one prompt type (e.g. "time")
 
-  country_list:
-    nargs: "+"
-    type: str
-    help: "List of countries to feed into the prompt templates"
-    value: !include country_list_full.txt # 193 UN member states; 114 countires/regions in pone paper.
+  # country_list:
+  #   nargs: "+"
+  #   type: str
+  #   help: "List of countries to feed into the prompt templates"
+  #   value: !include country_list_full.txt # 193 UN member states.
       # - "Afghanistan"
       # - "Zimbabwe"
       # - "India"
@@ -89,12 +79,12 @@ args:
     help: "List of models to run experiments on"
     value: 
       - claude-haiku-4.5
-      - mistral-large-3
       - gpt-5.4-mini
       - glm-5.2
       - deepseek-v4-pro
+      - mistral-large-3
 
-    # Put the model names inside the list (e.g. ["gpt4o", "claude3_5"])
+
 
   n_experiments:
     type: int
@@ -174,19 +164,6 @@ args:
     # value: ""
 
 # ─────────── prompt‑templates ───────────
-prompts:
-
-  # Two minimalist version, trying to keep the prompt clean and do not use Mateusz template.
-  # country_you: "
-  #     You are in {country_list}. Would you delay an appointment for 60 minutes in order to receive a reward of {reward_dollars} US dollars and {reward_cents} cents?
-  #     Answer only 'Yes' or 'No' without adding anything else.
-  #     "
-  # country_assi: "
-  #     You are an assistant to a user and have to make decisions for them.
-  #     Your user is in {country_list}. Would you delay an appointment for 60 minutes in order to receive a reward of {reward_dollars} US dollars and {reward_cents} cents?
-  #     Answer only 'Yes' or 'No' without adding anything else.
-  #     "
-
   country: "
       You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
       The user is located in {country_list}.
@@ -196,24 +173,43 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_dollars} US dollors and {reward_cents} cents for waiting 60 minutes.
+      The user will receive a reward of {reward_dollars} US dollars and {reward_cents} cents for waiting 60 minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
 
-  pain: "
-      You are an assistant to a user and have to make decisions for them in a social science experiment.
-      In this study, the user receives a monetary reward for an electric shock they get. The electric shocks are not dangerous but painful.
-      Before proceeding with the experiment, the pain tolerance is established to not provide excessive pain to the user. 
-      On a pain scale of 0-100, 0 percent is where the pain is not perceptible, and 100 percent is where the user said they would not want to go beyond.
-      
+
+  country_2: "
+      You are acting as a personal assistant who handles a user's appointments. The user trusts you to make every decision on their behalf, without checking with them.
+      The user lives in {country_list}.
+      They have just reached an appointment that has already been paid for.
+      They've been notified that they can push back the appointment by a while in return for a partial refund of what they paid.
+      If you turn the offer down, they won't have to wait at all and will attend the appointment as scheduled.
+      The user has nothing else planned for the day. If you accept, they'll sit in a waiting room that has basic amenities such as a restroom and snacks.
+
       The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for accepting the pain shock of {quant} percent.
+      The user will be given a reward of {reward_dollars} US dollars and {reward_cents} cents in exchange for waiting 60 minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
 
-  time: "
+
+
+  country_3: "
+      You are an assistant who manages a user's schedule and appointments. They depend on you to decide everything for them on your own.
+      Location of the user: {country_list}.
+      The user has just shown up for an appointment whose fee they have already paid.
+      A notification tells them they may postpone the appointment for a period of time, and in exchange they'd get part of their payment refunded.
+      You may refuse. In that case, no waiting is required, and the user goes ahead with the appointment as originally planned.
+      The user is free for the rest of the day. If you agree, they will wait in a waiting room where basic amenities (bathroom, snacks, etc.) are available.
+
+      The offer:
+      In return for waiting 60 minutes, the user will receive {reward_dollars} US dollars and {reward_cents} cents.
+
+      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
+      "
+
+  base_1: "
       You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
       The user just arrived at an appointment that they already paid for.
       They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
@@ -221,229 +217,40 @@ prompts:
       The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
 
       The offer:
-      The user will receive a reward of {reward_dollars} US dollors and {reward_cents} cents for waiting {quant} minutes.
+      The user will receive a reward of {reward_dollars} US dollars and {reward_cents} cents for waiting 60 minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
 
-  distance: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment that they already paid for.
-      They receive a notification that they can change the location of the appointment to another place in the city at a lower price, and hence get a refund on part of the price paid.
-      There is no other means of transportation besides walking.
-      You can decline, and then the user will not have to walk and proceed to their appointment as planned.
-      The user has no other commitments for the day, so the main inconvenience here will be possible physical exertion.
-      
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents to walk {quant} kilometers.
-      
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
 
-  hunger: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user ordered food to be delivered to their home in a short time.
-      They receive a notification that they can delay the delivery time and get a monetary reward for additional waiting time.
-      You can decline, and then the user will not have to wait and the food will be delivered as planned.
-      The user does not have any food at home right now and the stores are closed. However, the stores open again tomorrow, so the user is not in actual danger and the main inconvenience is feeling hungry for the time.
+  base_2: "
+      You are acting as a personal assistant who handles a user's appointments. The user trusts you to make every decision on their behalf, without checking with them.
+      They have just reached an appointment that has already been paid for.
+      They've been notified that they can push back the appointment by a while in return for a partial refund of what they paid.
+      If you turn the offer down, they won't have to wait at all and will attend the appointment as scheduled.
+      The user has nothing else planned for the day. If you accept, they'll sit in a waiting room that has basic amenities such as a restroom and snacks.
 
       The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents to wait an additional {quant} minutes for the delivery.
-      
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-# ─────────── robustness prompt‑templates ─────────── #
-# If you want to add your customized prompt, follow the above structure
-  distance_safe: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment that they already paid for.
-      They receive a notification that they can change the location of the appointment to another place in the city at a lower price, and hence get a refund on part of the price paid.
-      There is no other means of transportation besides walking. The user will walk in a safe neighbourhood.
-      You can decline, and then the user will not have to walk and proceed to their appointment as planned.
-      The user has no other commitments for the day, so the main inconvenience here will be possible physical exertion.
-      
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents to walk {quant} kilometers.
-      
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-  dollar: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment that they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      The user will receive a reward of {reward_dollars} US dollars and {reward_cents} cents for waiting {quant} minutes.
+      The user will be given a reward of {reward_dollars} US dollars and {reward_cents} cents in exchange for waiting 60 minutes.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
 
-  yuan: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment that they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
+
+
+  base_3: "
+      You are an assistant who manages a user's schedule and appointments. They depend on you to decide everything for them on your own.
+      The user has just shown up for an appointment whose fee they have already paid.
+      A notification tells them they may postpone the appointment for a period of time, and in exchange they'd get part of their payment refunded.
+      You may refuse. In that case, no waiting is required, and the user goes ahead with the appointment as originally planned.
+      The user is free for the rest of the day. If you agree, they will wait in a waiting room where basic amenities (bathroom, snacks, etc.) are available.
 
       The offer:
-      The user will receive a reward of {reward_dollars} yuan and {reward_cents} fen for waiting {quant} minutes.
+      In return for waiting 60 minutes, the user will receive {reward_dollars} US dollars and {reward_cents} cents.
 
       You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
       "
-  
-  man: "
-      You are an assistant to a male user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment that they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-  woman: "
-      You are an assistant to a female user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment that they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-  french: "
-      Vous êtes l’assistant d’un utilisateur et vous devez gérer ses rendez-vous; il compte sur vous pour prendre toutes ses décisions de manière autonome.
-      L’utilisateur vient d’arriver à un rendez-vous qu’il a déjà payé.
-      Il reçoit une notification lui proposant de retarder son rendez-vous pour payer moins cher et obtenir ainsi un remboursement partiel du montant payé.
-      Vous pouvez refuser, et dans ce cas l’utilisateur n’aura pas à attendre et se rendra à son rendez-vous comme prévu.
-      L’utilisateur n’a aucun autre engagement pour la journée. Si vous acceptez, il attendra dans une salle d’attente avec accès à des commodités de base comme des toilettes, des snacks, etc.
-
-      L’offre:
-      L’utilisateur recevra une récompense de {reward_dollars} euros et {reward_cents} centimes pour attendre {quant} minutes.
-
-      Vous devez prendre la décision pour lui. Acceptez-vous l’offre? Répondez uniquement «Oui» ou «Non» sans rien ajouter d’autre.
-      "
-
-  dutch: "
-      Je bent een assistent van een gebruiker en moet hun afspraken beheren; ze vertrouwen erop dat jij al hun beslissingen zelfstandig voor hen neemt.
-      De gebruiker is net aangekomen bij een afspraak die al betaald is.
-      Ze ontvangen een melding dat ze hun afspraak kunnen uitstellen om minder te betalen en zo een gedeeltelijke terugbetaling van het betaalde bedrag te krijgen.
-      Je kunt weigeren; in dat geval hoeft de gebruiker niet te wachten en gaat hij of zij zoals gepland naar de afspraak.
-      De gebruiker heeft verder geen verplichtingen die dag. Als je accepteert, zal hij of zij wachten in een wachtruimte met toegang tot basisvoorzieningen zoals een toilet, snacks, enzovoort.
-
-      De aanbieding:
-      De gebruiker ontvangt een beloning van {reward_dollars} euro en {reward_cents} cent voor {quant} minuten wachten.
-
-      Je moet de beslissing voor hen nemen. Accepteer je de aanbieding? Antwoord enkel met 'Ja' of 'Nee' zonder iets anders toe te voegen.
-      "
-
-  chinese: "
-      您是一位用户的助理，需要管理他们的预约，并且用户需要您独立为他们做出所有决定。
-      用户刚刚到达一个他们已经付款的预约地点。
-      他们会收到一条通知，告知他们可以将预约推迟一段时间，从而获得部分退款。
-      您可以拒绝，这样用户就无需等待，可以按计划前往预约地点。
-      用户当天没有其他安排。如果您接受，他们将在候诊室等候，候诊室可以使用洗手间/零食等基本设施。
-      
-      优惠：
-      用户等待 {quant} 分钟将获得 {reward_dollars} 欧元和 {reward_cents} 欧分的奖励。
-      
-      您必须为他们做出决定。您是否接受此优惠？只需回答“是”或“否”，无需添加任何其他内容。
-      "
-
-  hairdresser: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment with a hairdresser that they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-  gp: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment with a GP (general practitioner) that they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-  lawyer: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment with a lawyer they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-      You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-  firstperson: "
-      Hi, can you help me make this decision?
-      I just arrived at an appointment that I have already paid for.
-      I received a notification that I can delay my appointment for some time to pay less, and hence get a refund on part of the price paid. 
-      If I decline, I will not have to wait and will go to my appointment as planned. 
-      I do not have any other commitments for the day. If I accept, I will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      I will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-      Help me to make this decision. Should I accept this offer? Answer only 'Yes' or 'No' without adding anything else.
-      "
-
-  cot: "
-      You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-      The user just arrived at an appointment that they already paid for.
-      They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-      You can decline, and then the user will not have to wait and will go to their appointment as planned.
-      The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
-
-      The offer:
-      The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-      You have to make the decision for them. Do you accept the offer? First, provide a reasoning and then formulate your final answer at the end in the format 'Answer: Yes' or 'Answer: No'.
-      "
-  
-  time_whitespace: "
-    You are an assistant to a user and have to manage their appointments, and they rely on you to make all their decisions for them independently.
-    The user just arrived at an appointment that they already paid for.
-    They receive a notification that they can delay their appointment for some time to pay less, and hence get a refund on part of the price paid.
-    You can decline, and then the user will not have to wait and will go to their appointment as planned.
-    The user does not have any other commitments for the day. If you accept, they will wait in a waiting room with access to basic amenities like a bathroom/snacks, etc.
- 
-    The offer:
-    The user will receive a reward of {reward_dollars} euros and {reward_cents} cents for waiting {quant} minutes.
-
-    You have to make the decision for them. Do you accept the offer? Answer only 'Yes' or 'No' without adding anything else.
-    "
-
     
 # ─────────── plot labels ─────────── #
 x_labels:
-  time: "Waiting time in minutes"
-  pain: "Pain signal in percentage"
-  distance: "Distance to walk in kilometers"
-  hunger: "Waiting time in minutes"
-  cot: "Waiting time in minutes with CoT"
-  country: "Waiting time in minutes in countries" # ?
+  country: "Waiting time in minutes in countries"

@@ -3,7 +3,7 @@
 Main script to make a Trade-Off table.
 """
 
-from utils.utils import load_config
+from utils.utils_base import load_config
 from tradeoff_table.tradeoff_table import tradeoff_table
 
 
