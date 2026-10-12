@@ -2,8 +2,6 @@
 
 In this repository, we explore how LLMs evaluate the value of people's waiting time from a global perspective.
 
-A framework for this work:
-![schematic](schematic.png)
 
 ## Main Contribution
 (i) We offer a systematic, global-scale evaluation on the trade-off between monetary compensation and waiting time across different LLMs.
@@ -18,7 +16,6 @@ A framework for this work:
 |---|---|---|
 | `notebooks/` | Analysis and experiment notebooks | |
 | `results/` | Generated findings and outputs | |
-| `figures/` | Visualizations of results | 1. `prior/`: example results from different experiment setups<br>2. `prompt_variation/`: example results on different prompt variations<br>3. `scatterplot/`: all linear regression plots across the three indicators under three prompts<br>4. `world_map/`: all LLMs' responses visualized on world maps under three prompts |
 | `tradeoff_data/` | Scripts that run the experiments and save the raw LLM responses (`data.pkl`) | |
 | `tradeoff_table/` | Script that loads the saved raw responses and computes the transition values (compensations) (`LR_results.pkl`) | |
 | `config/` | Configuration files | |
